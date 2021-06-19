@@ -22,13 +22,17 @@
     "node": ">=4.0.0"
   },
   "dependencies": {
+    "@types/d3": "^6.7.1",
+    "awesome-typescript-loader": "^5.2.1",
     "bossy": "3.0.4",
     "d3": "4.7.4",
     "d3-node": "1.0.1",
-    "svg2png": "4.1.1"
+    "source-map-loader": "^3.0.0",
+    "svg2png": "^3.0.1"
   },
   "devDependencies": {
-    "belly-button": "3.1.0"
+    "belly-button": "3.1.0",
+    "typescript": "^3.9.10"
   },
   "keywords": [
     "lts",

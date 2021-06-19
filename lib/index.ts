@@ -1,7 +1,7 @@
 'use strict';
-const Fs = require('fs');
-const D3 = require('d3');
-const D3Node = require('d3-node');
+import * as Fs from "fs";
+import * as D3 from "d3";
+import * as D3Node from "d3-node";
 
 const styles = `
 .active {
@@ -19,19 +19,24 @@ const styles = `
 .bar-join {
   fill: #ffffff;
 }
-// .bar-join.unstable, .bar-join.active {
-//   display: none;
-// }
+.bar {
+  filter: drop-shadow( 0px 0px 4px rgba(100, 100, 111, 87.3));
+}
+ /*.bar-join.unstable, .bar-join.active {*/
+ /*  display: none;*/
+ /*}*/
 .tick text {
   font-size: 36px;
-  // font-family: 'Balsamiq Sans', cursive;
-  // font-family: 'Comfortaa', cursive;
-  font-family: 'Lato', sans-serif;
-  // font-family: 'Inter', sans-serif;
-  // font-family: 'Exo 2', sans-serif;
-  font-weight: 300;
-  // fill: #89a19d;
-  // stroke: #89a19d;
+  /*font-family: 'Balsamiq Sans', cursive;*/
+  /*font-family: 'Comfortaa', cursive;*/
+  /*font-family: 'Lato', sans-serif;*/
+  font-family: 'Inter', sans-serif;
+  /*font-family: 'Montserrat', sans-serif;*/
+  /*font-family: 'Exo 2', sans-serif;*/
+  /*font-weight: 300;*/
+  font-weight: 400;
+  /*fill: #89a19d;*/
+  /*stroke: #89a19d;*/
   fill: black;
   stroke: black;
 }
@@ -47,11 +52,32 @@ const styles = `
   dominant-baseline: middle;
   fill: white;
   stroke: white;
-}`;
+}
+`;
 
+interface Version {
+    unstable_start?: string;
+    start?: string;
+    lts?: string;
+    supported?: string;
+    end?: string;
+}
 
-function parseInput(data, queryStart, queryEnd, excludeMaster) {
-    const output = [];
+interface VersionBar {
+    name: string;
+    type: string;
+    start: Date;
+    end: Date;
+    hidebar: boolean;
+}
+
+function parseInput(
+    data: { [versionName: string]: Version },
+    queryStart: Date,
+    queryEnd: Date,
+    excludeMaster: boolean
+): VersionBar[] {
+    const output: VersionBar[] = [];
 
     Object.keys(data).forEach((v) => {
         const version = data[v];
@@ -72,10 +98,12 @@ function parseInput(data, queryStart, queryEnd, excludeMaster) {
         if (end === null) {
             throw new Error(`missing end in ${version}`);
         }
+        
+        let toAdd: VersionBar
 
         if (maint !== null) {
             if (maint < queryEnd && end > queryStart) {
-                output.push({name, type: 'supported', start: maint, end, hidebar: false});
+                toAdd = {name, type: 'supported', start: maint, end, hidebar: false};
             }
 
             end = maint;
@@ -92,6 +120,10 @@ function parseInput(data, queryStart, queryEnd, excludeMaster) {
         if (active !== null && active < queryEnd && end > queryStart) {
             output.push({name, type: 'active', start: active, end, hidebar: unstable_start === null});
         }
+        
+        if (toAdd) {
+            output.push(toAdd)
+        }
     });
 
     if (!excludeMaster) {
@@ -107,16 +139,36 @@ function parseInput(data, queryStart, queryEnd, excludeMaster) {
     return output;
 }
 
+export interface Margin {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+}
 
-function create(options) {
-    const {queryStart, queryEnd, html, svg: svgFile, png, animate, excludeMaster, picWidth, picHeight, margin: marginInput, marginLeft} = options;
-    const data = parseInput(options.data, queryStart, queryEnd, excludeMaster);
+export interface CreateParams {
+    data: { [version: string]: Version };
+    queryStart: Date;
+    queryEnd: Date;
+    html?: string;
+    svg?: string;
+    png?: string;
+    animate?: boolean;
+    excludeMaster?: boolean;
+    picWidth?: number;
+    picHeight?: number;
+    margin?: Margin;
+    marginLeft?: number
+}
+
+export function create(options: CreateParams) {
+    const data = parseInput(options.data, options.queryStart, options.queryEnd, options.excludeMaster);
     const d3n = new D3Node({svgStyles: styles, d3Module: D3});
-    const margin = marginInput || {top: 100, right: 30, bottom: 30, left: marginLeft};
-    const width = picWidth - margin.left - margin.right;
-    const height = picHeight - margin.top - margin.bottom;
+    const margin = options.margin || {top: 100, right: 30, bottom: 30, left: options.marginLeft};
+    const width = options.picWidth - margin.left - margin.right;
+    const height = options.picHeight - margin.top - margin.bottom;
     const xScale = D3.scaleTime()
-        .domain([queryStart, queryEnd])
+        .domain([options.queryStart, options.queryEnd])
         .range([0, width])
         .clamp(true);
     const yScale = D3.scaleBand()
@@ -137,23 +189,18 @@ function create(options) {
         .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
 
-    function calculateWidth(data) {
+    function calculateWidth(data: VersionBar) {
         return xScale(data.end) - xScale(data.start);
     }
 
-    function calculateHeight(data) {
+    function calculateHeight(data: VersionBar) {
         return yScale.bandwidth();
     }
 
     function customXAxis(g) {
         g.call(xAxis);
         g.select('.domain').remove();
-        // g.selectAll('.tick:nth-child(odd) line').attr('stroke', '#89a19d');
-        g.selectAll('.tick:nth-child(odd) line').attr('stroke', '#000000');
-        g.selectAll('.tick:nth-child(even) line')
-            .attr('stroke', '#000000')
-            // .attr('stroke', '#89a19d')
-            .attr('stroke-dasharray', '2,2');
+        g.selectAll('.tick line').attr('stroke', '#000000').attr("stroke-width", 2);
         g.selectAll('.tick text').attr('y', 0).attr('dy', -10);
     }
 
@@ -161,14 +208,15 @@ function create(options) {
         g.call(yAxis);
         g.select('.domain').remove();
         // g.selectAll('.tick line').attr('stroke', '#e1e7e7');
-        g.selectAll('.tick line').attr('stroke', '#000000');
+        g.selectAll('.tick line').attr('stroke', '#000000').attr("stroke-width", 2);
         g.selectAll('.tick text').attr('x', 0).attr('dx', -10);
         g.append('line')
             .attr('y1', height)
             .attr('y2', height)
             .attr('x2', width)
-            .attr('stroke', '#000000');
-            // .attr('stroke', '#89a19d');
+            .attr('stroke', '#000000')
+            .attr("stroke-width", 3);
+        // .attr('stroke', '#89a19d');
     }
 
     svg.append('g')
@@ -182,19 +230,19 @@ function create(options) {
     const bar = svg.selectAll('#bar-container').data(data).enter().append('g');
 
     const rect = bar.append('rect')
-        .attr('class', (data) => {
+        .attr('class', (data: VersionBar) => {
             return `bar ${data.type}`;
         })
-        .attr('x', (data) => {
+        .attr('x', (data: VersionBar) => {
             return xScale(data.start);
         })
-        .attr('y', (data) => {
+        .attr('y', (data: VersionBar) => {
             return yScale(data.name);
         })
         .attr('width', calculateWidth)
         .attr('height', calculateHeight);
 
-    if (animate === true) {
+    if (options.animate === true) {
         rect.append('animate')
             .attr('attributeName', 'width')
             .attr('from', 0)
@@ -206,15 +254,15 @@ function create(options) {
         .attr('class', (data) => {
             return `bar-join ${data.type}`;
         })
-        .attr('x', (data) => {
+        .attr('x', (data: VersionBar) => {
             return xScale(data.start);
         })
-        .attr('y', (data) => {
+        .attr('y', (data: VersionBar) => {
             return yScale(data.name);
         })
-        .attr('width', 1)
+        .attr('width', 4)
         .attr('height', calculateHeight)
-        .style('opacity', (data) => {
+        .style('opacity', (data: VersionBar) => {
             // Hack to hide on active and unstable
             if (data.hidebar ||
                 xScale(data.start) <= 0) {
@@ -226,37 +274,35 @@ function create(options) {
 
     bar.append('text')
         .attr('class', 'label')
-        .attr('x', (data) => {
+        .attr('x', (data: VersionBar) => {
             return xScale(data.start) + 20;
         })
-        .attr('y', (data) => {
+        .attr('y', (data: VersionBar) => {
             // + 2 is a small correction so the text fill is more centered.
             return yScale(data.name) + (calculateHeight(data) / 2) + 4;
         })
-        .text((data) => {
+        .text((data: VersionBar) => {
             if (data.type === 'lts') return "LTS"
             if (data.type === 'unstables') return "unstable"
             return data.type;
         })
-        .style('opacity', (data) => {
+        .style('opacity', (data: VersionBar) => {
             // Hack to deal with overflow text.
-            const min = data.type.length * 12;
+            const min = data.type.length * 20;
             return +(calculateWidth(data) >= min);
         });
 
-    if (typeof html === 'string') {
-        Fs.writeFileSync(html, d3n.html());
+    if (options.html) {
+        Fs.writeFileSync(options.html, d3n.html());
     }
 
-    if (typeof svgFile === 'string') {
-        Fs.writeFileSync(svgFile, d3n.svgString());
+    if (options.svg) {
+        Fs.writeFileSync(options.svg, d3n.svgString());
     }
 
-    if (typeof png === 'string') {
+    if (options.png) {
         const Svg2png = require('svg2png'); // Load this lazily.
 
-        Fs.writeFileSync(png, Svg2png.sync(Buffer.from(d3n.svgString())));
+        Fs.writeFileSync(options.png, Svg2png.sync(Buffer.from(d3n.svgString())));
     }
 }
-
-module.exports.create = create;

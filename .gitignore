@@ -38,3 +38,7 @@ jspm_packages
 
 .eslintcache
 .idea
+output.html
+bin/*.js
+lib/*.js
+.png

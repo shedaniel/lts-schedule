@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 'use strict';
-const Path = require('path');
-const Bossy = require('bossy');
-const Lib = require('../lib');
+import * as Bossy from "bossy";
+import * as Lib from "../lib";
+import * as Path from "path";
+
 const now = new Date();
 const oneYearFromNow = new Date();
 
@@ -103,7 +104,7 @@ if (args instanceof Error) {
     process.exit(1);
 }
 
-const options = {
+const options: Lib.CreateParams = {
     data: require(Path.resolve(__dirname, '..', args.data)),
     queryStart: new Date(args.start),
     queryEnd: new Date(args.end),
